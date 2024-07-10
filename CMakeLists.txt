@@ -8,10 +8,11 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(lart_msgs REQUIRED)
 
 
 add_executable(mission_controller src/mission_controller.cpp)
-ament_target_dependencies(mission_controller rclcpp std_msgs)
+ament_target_dependencies(mission_controller rclcpp std_msgs lart_msgs)
 
 install(TARGETS
   mission_controller
