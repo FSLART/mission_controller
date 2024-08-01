@@ -1,3 +1,4 @@
+// While it has not been defined, i added to ASStatus the int8 mission_finished field for the mission controller communicate to the state controller that all laps have been made
 #include <functional>
 #include <memory>
 
@@ -7,6 +8,7 @@
 #include "std_msgs/msg/int32.hpp"
 #include "lart_msgs/msg/mission.hpp"
 #include "lart_msgs/msg/state.hpp"
+#include "lart_msgs/msg/as_status.hpp"
 
 #define LAPS_ACCELERATION 1
 #define LAPS_SKIDPAD 2
@@ -22,17 +24,17 @@ class Mission_controller : public rclcpp::Node
 public:
   Mission_controller(): Node("mission_controller"), lap_counter(0)
   {
-    lap_subscriber_ = this->create_subscription<std_msgs::msg::Int32>("LapCount", 5, std::bind(&Mission_controller::lap_count, this, _1));
-    subscription_ = this->create_subscription<std_msgs::msg::Int8>("mission_button", 10, std::bind(&Mission_controller::process_mission, this, _1));//ask the correct name of the topic
-    mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("mission", 10);
-    mission_finished_pub_ = this->create_publisher<std_msgs::msg::Int8>("mission_finished", 10);//publisher to state_controller true if all laps were made
-    mission_finished.data=0;//1 if true
+    lap_subscriber_ = this->create_subscription<std_msgs::msg::Int32>("LapCount", 5, std::bind(&Mission_controller::lap_count, this, _1));//need to know the full path of the topic
+    acu_mission_sub_ = this->create_subscription<lart_msgs::msg::Mission>("/acu_origin/system_status/critical_as/mission", 10, std::bind(&Mission_controller::process_mission, this, _1));//get the mission from the ACU
+    mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("/pc_origin/system_status/critical_as/mission", 10);
+    mission_finished_pub_ = this->create_publisher<lart_msgs::msg::ASStatus>("/pc_origin/system_status/critical_as/", 10);//publisher to state_controller true if all laps were made, topic to be defined
+    mission_finished.mission_finished=0;//1 if true
   }
 
 private:
   lart_msgs::msg::Mission current_mission_msg;
   lart_msgs::msg::Mission previous_mission_msg;
-  std_msgs::msg::Int8 mission_finished;
+  lart_msgs::msg::ASStatus mission_finished;
   int32_t lap_counter;
 
   void lap_count(const std_msgs::msg::Int32 & msg) 
@@ -40,7 +42,7 @@ private:
     lap_counter = msg.data;
   }
 
-  void process_mission( const std_msgs::msg::Int8 & msg)
+  void process_mission( const lart_msgs::msg::Mission & msg)
   {
     int mission = msg.data;
 
@@ -91,15 +93,15 @@ private:
 
   void check_laps(int laps){
     if(lap_counter >= laps){
-      mission_finished.data = 1;
+      mission_finished.mission_finished = 1;
       mission_finished_pub_->publish(mission_finished);
     }
   }
 
-  rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr subscription_;
+  rclcpp::Subscription<lart_msgs::msg::Mission>::SharedPtr acu_mission_sub_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr lap_subscriber_;
   rclcpp::Publisher<lart_msgs::msg::Mission>::SharedPtr mission_pub_;
-  rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr mission_finished_pub_;
+  rclcpp::Publisher<lart_msgs::msg::ASStatus>::SharedPtr mission_finished_pub_;
 };
 
 
