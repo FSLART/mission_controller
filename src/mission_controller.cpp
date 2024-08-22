@@ -42,9 +42,9 @@ private:
     lap_counter = msg->data;
   }
 
-  void process_mission( const lart_msgs::msg::Mission & msg)
+  void process_mission( const lart_msgs::msg::Mission msg)
   {
-    int mission = msg.data;
+    int mission = msg->data;
 
     switch(mission){
       case lart_msgs::msg::Mission::ACCELERATION:
