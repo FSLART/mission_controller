@@ -44,7 +44,7 @@ private:
 
   void process_mission( const lart_msgs::msg::Mission::SharedPtr msg)
   {
-    mission = msg->data;
+    auto mission = msg->data;
 
     switch(mission){
       case lart_msgs::msg::Mission::ACCELERATION:
