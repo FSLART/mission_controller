@@ -39,12 +39,12 @@ private:
 
   void lap_count(const std_msgs::msg::Int8 msg) 
   {
-    lap_counter = msg->data;
+    //lap_counter = msg.data;
   }
 
   void process_mission( const lart_msgs::msg::Mission msg)
   {
-    int mission = msg->data;
+    /* mission = msg.data;
 
     switch(mission){
       case lart_msgs::msg::Mission::ACCELERATION:
@@ -88,7 +88,7 @@ private:
     if(current_mission_msg.data != previous_mission_msg.data){
       previous_mission_msg.data = current_mission_msg.data;
       mission_pub_->publish(current_mission_msg);
-    }
+    }*/
   }
 
   void check_laps(int laps){
