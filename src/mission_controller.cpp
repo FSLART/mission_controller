@@ -26,7 +26,7 @@ class Mission_controller : public rclcpp::Node
 public:
   Mission_controller(): Node("mission_controller")
   {
-    lap_subscriber_ = this->create_subscription<lart_msgs::msg::ASStatus>("LapCount", 5, std::bind(&Mission_controller::lap_count, this, _1));//need to know the full path of the topic
+    lap_subscriber_ = this->create_subscription<std_msgs::msg::Int8>("/lapCount", 5, std::bind(&Mission_controller::lap_count, this, _1));//need to know the full path of the topic
     acu_mission_sub_ = this->create_subscription<lart_msgs::msg::Mission>("/acu_origin/system_status/critical_as/mission", 10, std::bind(&Mission_controller::process_mission, this, _1));//get the mission from the ACU
     mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("/pc_origin/system_status/critical_as/mission", 10);
     mission_finished_pub_ = this->create_publisher<lart_msgs::msg::ASStatus>("/pc_origin/system_status/critical_as/", 10);//publisher to state_controller true if all laps were made, topic to be defined
@@ -37,14 +37,14 @@ private:
   lart_msgs::msg::Mission previous_mission_msg;
   int32_t lap_counter;
 
-  void lap_count(const lart_msgs::msg::ASStatus msg) 
+  void lap_count(const std_msgs::msg::Int8::SharedPtr &msg) 
   {
-    //lap_counter = msg.data;
+    lap_counter = msg.data;
   }
 
-  void process_mission( const lart_msgs::msg::Mission msg)
+  void process_mission( const lart_msgs::msg::Mission::SharedPtr &msg)
   {
-    /* mission = msg.data;
+    mission = msg.data;
 
     switch(mission){
       case lart_msgs::msg::Mission::ACCELERATION:
@@ -88,7 +88,7 @@ private:
     if(current_mission_msg.data != previous_mission_msg.data){
       previous_mission_msg.data = current_mission_msg.data;
       mission_pub_->publish(current_mission_msg);
-    }*/
+    }
   }
 
   void check_laps(int laps){
@@ -100,7 +100,7 @@ private:
   }
 
   rclcpp::Subscription<lart_msgs::msg::Mission>::SharedPtr acu_mission_sub_;
-  rclcpp::Subscription<lart_msgs::msg::ASStatus>::SharedPtr lap_subscriber_;
+  rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr lap_subscriber_;
   rclcpp::Publisher<lart_msgs::msg::Mission>::SharedPtr mission_pub_;
   rclcpp::Publisher<lart_msgs::msg::ASStatus>::SharedPtr mission_finished_pub_;
 };
