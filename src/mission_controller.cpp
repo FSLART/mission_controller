@@ -6,6 +6,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/int8.hpp"
 #include "std_msgs/msg/int32.hpp"
+#include "std_msgs/msg/bool.hpp"
+
 #include "lart_msgs/msg/mission.hpp"
 #include "lart_msgs/msg/state.hpp"
 #include "lart_msgs/msg/as_status.hpp"
@@ -28,13 +30,11 @@ public:
     acu_mission_sub_ = this->create_subscription<lart_msgs::msg::Mission>("/acu_origin/system_status/critical_as/mission", 10, std::bind(&Mission_controller::process_mission, this, _1));//get the mission from the ACU
     mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("/pc_origin/system_status/critical_as/mission", 10);
     mission_finished_pub_ = this->create_publisher<lart_msgs::msg::ASStatus>("/pc_origin/system_status/critical_as/", 10);//publisher to state_controller true if all laps were made, topic to be defined
-    mission_finished.mission_finished=0;//1 if true
   }
 
 private:
   lart_msgs::msg::Mission current_mission_msg;
   lart_msgs::msg::Mission previous_mission_msg;
-  lart_msgs::msg::ASStatus mission_finished;
   int32_t lap_counter;
 
   void lap_count(const std_msgs::msg::Int32 & msg) 
@@ -93,8 +93,9 @@ private:
 
   void check_laps(int laps){
     if(lap_counter >= laps){
-      mission_finished.mission_finished = 1;
-      mission_finished_pub_->publish(mission_finished);
+      lart_msgs::msg::ASStatus msg;
+      msg.state.data=lart_msgs::msg::State::FINISH;
+      mission_finished_pub_->publish(msg);
     }
   }
 
