@@ -37,14 +37,14 @@ private:
   lart_msgs::msg::Mission previous_mission_msg;
   int32_t lap_counter;
 
-  void lap_count(const std_msgs::msg::Int8::SharedPtr &msg) 
+  void lap_count(const std_msgs::msg::Int8::SharedPtr msg) 
   {
-    lap_counter = msg.data;
+    lap_counter = msg->data;
   }
 
-  void process_mission( const lart_msgs::msg::Mission::SharedPtr &msg)
+  void process_mission( const lart_msgs::msg::Mission::SharedPtr msg)
   {
-    mission = msg.data;
+    mission = msg->data;
 
     switch(mission){
       case lart_msgs::msg::Mission::ACCELERATION:
