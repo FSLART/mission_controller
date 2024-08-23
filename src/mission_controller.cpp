@@ -29,7 +29,7 @@ public:
     lap_subscriber_ = this->create_subscription<std_msgs::msg::Int8>("/lapCount", 5, std::bind(&Mission_controller::lap_count, this, _1));//need to know the full path of the topic
     acu_mission_sub_ = this->create_subscription<lart_msgs::msg::Mission>("/acu_origin/system_status/critical_as/mission", 10, std::bind(&Mission_controller::process_mission, this, _1));//get the mission from the ACU
     mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("/pc_origin/system_status/critical_as/mission", 10);
-    mission_finished_pub_ = this->create_publisher<lart_msgs::msg::ASStatus>("/pc_origin/system_status/critical_as/", 10);//publisher to state_controller true if all laps were made, topic to be defined
+    mission_finished_pub_ = this->create_publisher<lart_msgs::msg::ASStatus>("/pc_origin/system_status/critical_as", 10);//publisher to state_controller true if all laps were made, topic to be defined
   }
 
 private:
