@@ -15,6 +15,7 @@
 #include "lart_msgs/msg/state.hpp"
 #include "lart_msgs/msg/as_status.hpp"
 
+
 #define LAPS_ACCELERATION 1
 #define LAPS_SKIDPAD 2
 #define LAPS_TRACKDRIVE 10 //according to D8.3.1 from rule book
@@ -23,6 +24,8 @@
 
 #define SKIDPAD_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=2"
 #define TRACKDRIVE_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=4"
+#define ACCELERATION_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=1"
+#define INSPECTION_MISSION "ros2 run inspection_mission inspection_mission_node"
 
 using std::placeholders::_1;
 namespace bp = boost::process;
@@ -35,10 +38,12 @@ public:
   {
     lap_subscriber_ = this->create_subscription<std_msgs::msg::Int16>("/lapCount", 5, std::bind(&Mission_controller::lap_count, this, _1));//need to know the full path of the topic
     acu_mission_sub_ = this->create_subscription<lart_msgs::msg::Mission>("/acu_origin/system_status/critical_as/mission", 10, std::bind(&Mission_controller::process_mission, this, _1));//get the mission from the ACU
+    
     mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("/pc_origin/system_status/critical_as/mission", 10);
-    mission_finished_pub_ = this->create_publisher<lart_msgs::msg::ASStatus>("/pc_origin/system_status/critical_as", 10);//publisher to state_controller true if all laps were made, topic to be defined
+    mission_finished_pub_ = this->create_publisher<lart_msgs::msg::State>("/pc_origin/system_status/critical_as", 10);//publisher to state_controller true if all laps were made, topic to be defined
     
     timer = this->create_wall_timer(std::chrono::milliseconds(200), std::bind(&Mission_controller::check_laps, this));
+    this->current_mission_msg.data = lart_msgs::msg::Mission::MANUAL; //default mission
   }
 
   ~Mission_controller() {
@@ -58,12 +63,25 @@ private:
   void lap_count(const std_msgs::msg::Int16::SharedPtr msg) 
   {
     lap_counter = msg->data;
+    if (lap_counter >= laps){
+      RCLCPP_INFO(this->get_logger(), "Mission finished, laps completed: %d", lap_counter);
+
+      lart_msgs::msg::State msg;
+      msg.data = lart_msgs::msg::State::FINISH;
+      mission_finished_pub_->publish(msg);
+
+      is_planner_running = false; // Reset planner state
+      if (child_process_ && child_process_->running()) {
+        child_process_->terminate(); // Terminate the planner process
+        child_process_.reset(); // Reset the unique_ptr
+      }
+    } 
   }
 
   void check_laps(){
     if(lap_counter >= laps){
-      lart_msgs::msg::ASStatus msg;
-      msg.state.data=lart_msgs::msg::State::FINISH;
+      lart_msgs::msg::State msg;
+      msg.data=lart_msgs::msg::State::FINISH;
       mission_finished_pub_->publish(msg);
     }
   }
@@ -89,10 +107,12 @@ private:
     auto mission = msg->data;
 
     switch(mission){
+      case lart_msgs::msg::Mission::MANUAL:
+        break;
       case lart_msgs::msg::Mission::ACCELERATION:
         current_mission_msg.data= lart_msgs::msg::Mission::ACCELERATION;
         laps = LAPS_ACCELERATION;
-        activate_planner(TRACKDRIVE_PLANNER); 
+        activate_planner(ACCELERATION_PLANNER); 
         RCLCPP_INFO(this->get_logger(), "Mission is acceleration('%d')", mission);
         break;
 
@@ -120,6 +140,7 @@ private:
 
       case lart_msgs::msg::Mission::INSPECTION:
         current_mission_msg.data= lart_msgs::msg::Mission::INSPECTION;
+        activate_planner(INSPECTION_MISSION);
         RCLCPP_INFO(this->get_logger(), "Mission is inspection('%d')", mission);
         break;
 
@@ -143,7 +164,7 @@ private:
   rclcpp::Subscription<lart_msgs::msg::Mission>::SharedPtr acu_mission_sub_;
   rclcpp::Subscription<std_msgs::msg::Int16>::SharedPtr lap_subscriber_;
   rclcpp::Publisher<lart_msgs::msg::Mission>::SharedPtr mission_pub_;
-  rclcpp::Publisher<lart_msgs::msg::ASStatus>::SharedPtr mission_finished_pub_;
+  rclcpp::Publisher<lart_msgs::msg::State>::SharedPtr mission_finished_pub_;
   rclcpp::TimerBase::SharedPtr timer;
   std::unique_ptr<bp::child> child_process_;
 };
