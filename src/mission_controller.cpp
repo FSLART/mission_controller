@@ -24,7 +24,7 @@
 #define LAPS_AUTOCROSS 1 // according to D6.4.2 from rule book
 
 #define SKIDPAD_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=2"
-#define TRACKDRIVE_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=4"
+#define TRACKDRIVE_PLANNER "ros2 launch path_planner launch_planner.py"
 #define ACCELERATION_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=1"
 #define INSPECTION_MISSION "ros2 run inspection_mission inspection_mission_node"
 
@@ -43,7 +43,9 @@ public:
   {
     lap_subscriber_ = this->create_subscription<lart_msgs::msg::SlamStats>("/ekf/stats", 5, std::bind(&Mission_controller::lap_count, this, _1));//need to know the full path of the topic
     acu_mission_sub_ = this->create_subscription<lart_msgs::msg::Mission>("/acu_origin/system_status/critical_as/mission", 10, std::bind(&Mission_controller::process_mission, this, _1));//get the mission from the ACU
-    
+
+    state_subscriber_ = this->create_subscription<lart_msgs::msg::State>("/pc_origin/system_status/critical_as/state", 10, std::bind(&Mission_controller::process_state, this, _1));//get the state from the state controller
+
     mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("/pc_origin/system_status/critical_as/mission", 10);
     mission_finished_pub_ = this->create_publisher<lart_msgs::msg::State>("/pc_origin/system_status/critical_as", 10);//publisher to state_controller true if all laps were made, topic to be defined
     
@@ -52,17 +54,23 @@ public:
 
   ~Mission_controller() {
     RCLCPP_INFO(this->get_logger(), "Shutting down Mission_controller and terminating the path_planner.");
-    if (planner_process_ && planner_process_->running()) {
-        planner_process_->terminate();
-    }
+    do{
+      RCLCPP_WARN(this->get_logger(), "%d", this->planner_process_->id());
+      this->planner_process_->terminate();
+      if (this->planner_process_->running()) 
+        // If the process is still running, send SIGKILL
+        ::kill(this->planner_process_->id(), SIGKILL);
+      planner_process_->wait();
+    }while(this->planner_process_ && this->planner_process_->running());
     if (inspection_process_ && inspection_process_->running()) {
-        inspection_process_->terminate();
+        ::kill(this->inspection_process_->id(), SIGINT);
     }
+    RCLCPP_WARN(this->get_logger(), "%d", this->spac_process_->id());
     if (spac_process_ && spac_process_->running()) {
-        spac_process_->terminate();
+        ::kill(this->spac_process_->id(), SIGINT);
     }
     if (zed_process_ && zed_process_->running()) {
-        zed_process_->terminate();
+        ::kill(this->zed_process_->id(), SIGINT);
     }
 }
 
@@ -75,6 +83,7 @@ private:
   bool is_spac_running = false;
   bool is_inspection_running = false;
   bool is_zed_running = false;
+  std::chrono::steady_clock::time_point finish_change_time;
 
   void lap_count(const lart_msgs::msg::SlamStats::SharedPtr msg) 
   {
@@ -85,24 +94,20 @@ private:
 
       lart_msgs::msg::State msg;
       msg.data = lart_msgs::msg::State::FINISH;
+      finish_change_time = std::chrono::steady_clock::now();
       mission_finished_pub_->publish(msg);
 
-      is_planner_running = false; // Reset planner state
-      if (planner_process_ && planner_process_->running()) {
-        planner_process_->terminate(); // Terminate the planner process
-       }
-      is_spac_running = false; // Reset SPAC state
-      if (spac_process_ && spac_process_->running()) {
-        spac_process_->terminate(); // Terminate the SPAC process
+      if (std::chrono::steady_clock::now() - finish_change_time > std::chrono::seconds(5)) {
+        RCLCPP_INFO(this->get_logger(), "Mission finished, shutting down node.");
+        rclcpp::shutdown(); // Shutdown the node after 5 seconds of mission finish
       }
-      is_inspection_running = false; // Reset inspection state
-      if (inspection_process_ && inspection_process_->running()) {
-        inspection_process_->terminate(); // Terminate the inspection process
-      }
-      is_zed_running = false; // Reset ZED state
-      if (zed_process_ && zed_process_->running()) {
-        zed_process_->terminate(); // Terminate the ZED process
-      }
+    }
+  }
+
+  void process_state(const lart_msgs::msg::State::SharedPtr msg)
+  {
+    if (msg->data == lart_msgs::msg::State::FINISH || msg->data == lart_msgs::msg::State::EMERGENCY) {
+      rclcpp::shutdown(); // Shutdown the node if mission is finished or emergency state is reached
     }
   }
 
@@ -172,9 +177,9 @@ private:
       case lart_msgs::msg::Mission::ACCELERATION:
         current_mission_msg.data= lart_msgs::msg::Mission::ACCELERATION;
         laps = LAPS_ACCELERATION;
+        activate_zed_bridge();
         activate_planner(ACCELERATION_PLANNER);
         activate_spac();
-        activate_zed_bridge();
         RCLCPP_INFO(this->get_logger(), "Mission is acceleration('%d')", mission);
         break;
 
@@ -182,27 +187,27 @@ private:
         //call the custom launch file for the skidpad mission mode of the panner. :(
         current_mission_msg.data= lart_msgs::msg::Mission::SKIDPAD;
         laps = LAPS_SKIDPAD;
+        activate_zed_bridge();
         activate_planner(SKIDPAD_PLANNER);
         activate_spac();
-        activate_zed_bridge();
         RCLCPP_INFO(this->get_logger(), "Mission is skidpad('%d')", mission);
         break;
 
       case lart_msgs::msg::Mission::TRACKDRIVE:
         current_mission_msg.data= lart_msgs::msg::Mission::TRACKDRIVE;
         laps = LAPS_TRACKDRIVE;
+        activate_zed_bridge();
         activate_planner(TRACKDRIVE_PLANNER); 
         activate_spac();
-        activate_zed_bridge();
         RCLCPP_INFO(this->get_logger(), "Mission is trackDrive('%d')", mission);
         break;
 
       case lart_msgs::msg::Mission::EBS_TEST:
         current_mission_msg.data= lart_msgs::msg::Mission::EBS_TEST;
         laps = LAPS_EBS_TEST;
+        activate_zed_bridge();
         activate_planner(TRACKDRIVE_PLANNER); 
         activate_spac();
-        activate_zed_bridge();
         RCLCPP_INFO(this->get_logger(), "Mission is ebs test('%d')", mission);
         break;
 
@@ -215,9 +220,9 @@ private:
       case lart_msgs::msg::Mission::AUTOCROSS:
         current_mission_msg.data= lart_msgs::msg::Mission::AUTOCROSS;
         laps = LAPS_AUTOCROSS;
+        activate_zed_bridge();
         activate_planner(TRACKDRIVE_PLANNER); 
         activate_spac();
-        activate_zed_bridge();
         RCLCPP_INFO(this->get_logger(), "Mission is autocross('%d')", mission);
         break;
 
@@ -233,6 +238,7 @@ private:
 
   rclcpp::Subscription<lart_msgs::msg::Mission>::SharedPtr acu_mission_sub_;
   rclcpp::Subscription<lart_msgs::msg::SlamStats>::SharedPtr lap_subscriber_;
+  rclcpp::Subscription<lart_msgs::msg::State>::SharedPtr state_subscriber_;
   rclcpp::Publisher<lart_msgs::msg::Mission>::SharedPtr mission_pub_;
   rclcpp::Publisher<lart_msgs::msg::State>::SharedPtr mission_finished_pub_;
   rclcpp::TimerBase::SharedPtr timer;
