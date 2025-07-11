@@ -119,7 +119,7 @@ private:
 
     do{
       //intializes the path_planner node with the desired mode
-      planner_process_ = std::make_unique<bp::child>(planner_mode); 
+      planner_process_ = std::make_unique<bp::child>("/bin/bash",  "-c" ,planner_mode); 
     }while(!planner_process_->running());
     RCLCPP_INFO(this->get_logger(), "Planner activated in %s mode", planner_mode.c_str());
     
@@ -134,7 +134,8 @@ private:
 
     do{
       //intializes the inspection node
-      inspection_process_ = std::make_unique<bp::child>(INSPECTION_MISSION); 
+      //inspection_process_ = std::make_unique<bp::child>(INSPECTION_MISSION);
+      inspection_process_ = std::make_unique<bp::child>("/bin/bash",  "-c" ,INSPECTION_MISSION);
     }while(!inspection_process_->running());
     RCLCPP_INFO(this->get_logger(), "Inspection activated");
 
@@ -148,7 +149,7 @@ private:
 
     do{
       //intializes the SPAC node
-      spac_process_ = std::make_unique<bp::child>(SPAC); 
+      spac_process_ = std::make_unique<bp::child>("/bin/bash",  "-c" ,SPAC); 
     }while(!spac_process_->running());
     RCLCPP_INFO(this->get_logger(), "SPAC activated");
     
@@ -156,15 +157,21 @@ private:
   }
 
   void activate_zed_bridge(){
-    if(zed_process_ && zed_process_->running()){
+    // if(zed_process_ && zed_process_->running()){
+    //   return;
+    // }
+
+    if(is_zed_running){
       return;
     }
 
     do{
       //intializes the zed_bridge node
-      zed_process_ = std::make_unique<bp::child>(ZED_BRIDGE); 
+      zed_process_ = std::make_unique<bp::child>("/bin/bash",  "-c" ,ZED_BRIDGE); 
     }while(!zed_process_->running());
     RCLCPP_INFO(this->get_logger(), "ZED Bridge activated");
+
+    is_zed_running = true;
   }
 
   void process_mission( const lart_msgs::msg::Mission::SharedPtr msg)

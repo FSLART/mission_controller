@@ -14,6 +14,7 @@ find_package(lart_msgs REQUIRED)
 add_executable(mission_controller src/mission_controller.cpp)
 ament_target_dependencies(mission_controller rclcpp std_msgs lart_msgs)
 
+
 install(TARGETS
   mission_controller
   DESTINATION lib/${PROJECT_NAME})
