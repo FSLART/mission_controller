@@ -24,7 +24,7 @@
 #define LAPS_AUTOCROSS 1 // according to D6.4.2 from rule book
 
 #define SKIDPAD_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=2"
-#define TRACKDRIVE_PLANNER "ros2 launch path_planner launch_planner.py"
+#define TRACKDRIVE_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=4"
 #define ACCELERATION_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=1"
 #define INSPECTION_MISSION "ros2 run inspection_mission inspection_mission_node"
 
