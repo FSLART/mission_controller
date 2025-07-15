@@ -23,10 +23,12 @@
 #define LAPS_EBS_TEST 1 // if needed, not implemented for now
 #define LAPS_AUTOCROSS 1 // according to D6.4.2 from rule book
 
-#define SKIDPAD_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=2"
-#define TRACKDRIVE_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=4"
-#define ACCELERATION_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=1"
-#define INSPECTION_MISSION "ros2 run inspection_mission inspection_mission_node"
+// #define SKIDPAD_PLANNER "ros2 run path_planner my_node --ros-args -p planner_mode:=2"
+#define TRACKDRIVE_PLANNER "/home/lart-tasha/Documents/repos/ros2_ws/install/path_planner/lib/path_planner/my_node --ros-args -p planner_mode:=4"
+#define ACCELERATION_PLANNER "/home/lart-tasha/Documents/repos/ros2_ws/install/path_planner/lib/path_planner/my_node --ros-args -p planner_mode:=1"
+#define INSPECTION_MISSION "/home/lart-tasha/Documents/repos/ros2_ws/install/inspection_mission/lib/inspection_mission/inspection_mission_node"
+#define SKIDPAD_PLANNER "/home/lart-tasha/Documents/repos/ros2_ws/install/path_planner/lib/path_planner/my_node --ros-args -p planner_mode:=2"
+
 
 #define SPAC "ros2 launch spac2_0 drivemodel.launch.xml"
 
@@ -53,6 +55,7 @@ public:
   }
 
   ~Mission_controller() {
+    sleep(5);
     RCLCPP_INFO(this->get_logger(), "Shutting down Mission_controller and terminating the path_planner.");
     do{
       RCLCPP_WARN(this->get_logger(), "%d", this->planner_process_->id());
@@ -86,10 +89,14 @@ private:
   std::chrono::steady_clock::time_point finish_change_time;
 
   void lap_count(const lart_msgs::msg::SlamStats::SharedPtr msg) 
-  {
+  { 
+    if (this->current_mission_msg.data == lart_msgs::msg::Mission::MANUAL) {
+      return; // Do not process lap count in manual mode
+    }
+
     lap_counter = msg->lap_count;
 
-    if (lap_counter >= laps){
+    if (lap_counter == laps){
       RCLCPP_INFO(this->get_logger(), "Mission finished, laps completed: %d", lap_counter);
 
       lart_msgs::msg::State msg;
@@ -119,7 +126,7 @@ private:
 
     do{
       //intializes the path_planner node with the desired mode
-      planner_process_ = std::make_unique<bp::child>("/bin/bash",  "-c" ,planner_mode); 
+      planner_process_ = std::make_unique<bp::child>(planner_mode); 
     }while(!planner_process_->running());
     RCLCPP_INFO(this->get_logger(), "Planner activated in %s mode", planner_mode.c_str());
     
@@ -157,9 +164,9 @@ private:
   }
 
   void activate_zed_bridge(){
-    // if(zed_process_ && zed_process_->running()){
-    //   return;
-    // }
+    if(zed_process_ && zed_process_->running()){
+      return;
+    }
 
     if(is_zed_running){
       return;
@@ -182,8 +189,8 @@ private:
       case lart_msgs::msg::Mission::MANUAL:
         break;
       case lart_msgs::msg::Mission::ACCELERATION:
-        current_mission_msg.data= lart_msgs::msg::Mission::ACCELERATION;
         laps = LAPS_ACCELERATION;
+        current_mission_msg.data= lart_msgs::msg::Mission::ACCELERATION;
         activate_zed_bridge();
         activate_planner(ACCELERATION_PLANNER);
         activate_spac();
@@ -192,8 +199,8 @@ private:
 
       case lart_msgs::msg::Mission::SKIDPAD:
         //call the custom launch file for the skidpad mission mode of the panner. :(
-        current_mission_msg.data= lart_msgs::msg::Mission::SKIDPAD;
         laps = LAPS_SKIDPAD;
+        current_mission_msg.data= lart_msgs::msg::Mission::SKIDPAD;
         activate_zed_bridge();
         activate_planner(SKIDPAD_PLANNER);
         activate_spac();
@@ -201,8 +208,8 @@ private:
         break;
 
       case lart_msgs::msg::Mission::TRACKDRIVE:
-        current_mission_msg.data= lart_msgs::msg::Mission::TRACKDRIVE;
         laps = LAPS_TRACKDRIVE;
+        current_mission_msg.data= lart_msgs::msg::Mission::TRACKDRIVE;
         activate_zed_bridge();
         activate_planner(TRACKDRIVE_PLANNER); 
         activate_spac();
