@@ -134,7 +134,8 @@ private:
   void process_mission( const lart_msgs::msg::Mission::SharedPtr msg)
   {
     auto mission = msg->data;
-
+    if (mission == this->current_mission_msg.data)
+      return;
     switch(mission){
       case lart_msgs::msg::Mission::MANUAL:
         break;
