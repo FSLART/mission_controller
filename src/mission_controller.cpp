@@ -4,10 +4,12 @@
 #include <chrono>
 #include <string>
 #include <boost/process.hpp>
+#include <thread>
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/int8.hpp"
 #include "std_msgs/msg/int16.hpp"
+#include "std_msgs/msg/u_int16.hpp"
 
 #include "std_msgs/msg/bool.hpp"
 
@@ -22,6 +24,7 @@
 #define LAPS_TRACKDRIVE 10 //according to D8.3.1 from rule book
 #define LAPS_EBS_TEST 1 // if needed, not implemented for now
 #define LAPS_AUTOCROSS 1 // according to D6.4.2 from rule book
+#define LAPS_INSPECTION 1
 
 #define INSPECTION_MISSION "/home/lart-tasha/Documents/repos/ros2_ws/install/inspection_mission/lib/inspection_mission/inspection_mission_node"
 #define LAUNCH_FILE_ACCELERATION "ros2 launch startup_system acceleration.launch.py"
@@ -41,6 +44,8 @@ public:
     acu_mission_sub_ = this->create_subscription<lart_msgs::msg::Mission>("/acu_origin/system_status/critical_as/mission", 10, std::bind(&Mission_controller::process_mission, this, _1));//get the mission from the ACU
 
     state_subscriber_ = this->create_subscription<lart_msgs::msg::State>("/pc_origin/system_status/critical_as/state", 10, std::bind(&Mission_controller::process_state, this, _1));//get the state from the state controller
+
+    ignition_subscriber_ = this->create_subscription<std_msgs::msg::UInt16>("/system/ignition", 10, std::bind(&Mission_controller::process_ignition, this, _1));//get the ignition status from the state controller
 
     mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("/pc_origin/system_status/critical_as/mission", 10);
     mission_finished_pub_ = this->create_publisher<lart_msgs::msg::State>("/pc_origin/system_status/critical_as", 10);//publisher to state_controller true if all laps were made, topic to be defined
@@ -66,6 +71,7 @@ private:
   lart_msgs::msg::Mission previous_mission_msg;
   int32_t lap_counter = -1;
   int32_t laps = 0;
+  uint16_t ignition_status = 0; // 0 - off, 1 - on
   
   bool is_nodes_running = false;
   bool is_inspection_running = false;
@@ -92,6 +98,12 @@ private:
         rclcpp::shutdown(); // Shutdown the node after 5 seconds of mission finish
       }
     }
+  }
+
+  void process_ignition(const std_msgs::msg::UInt16::SharedPtr msg)
+  {
+    ignition_status = msg->data;
+
   }
 
   void process_state(const lart_msgs::msg::State::SharedPtr msg)
@@ -134,66 +146,64 @@ private:
   void process_mission( const lart_msgs::msg::Mission::SharedPtr msg)
   {
     auto mission = msg->data;
-    if (mission == this->current_mission_msg.data)
-      return;
-    switch(mission){
-      case lart_msgs::msg::Mission::MANUAL:
-        break;
-      case lart_msgs::msg::Mission::ACCELERATION:
-        laps = LAPS_ACCELERATION;
-        current_mission_msg.data= lart_msgs::msg::Mission::ACCELERATION;
-        activate_nodes(LAUNCH_FILE_ACCELERATION);
-        RCLCPP_INFO(this->get_logger(), "Mission is acceleration('%d')", mission);
-        break;
+    if (ignition_status == 1){
+      switch(mission){
+        case lart_msgs::msg::Mission::MANUAL:
+          break;
+        case lart_msgs::msg::Mission::ACCELERATION:
+          laps = LAPS_ACCELERATION;
+          current_mission_msg.data= lart_msgs::msg::Mission::ACCELERATION;
+          activate_nodes(LAUNCH_FILE_ACCELERATION);
+          RCLCPP_INFO(this->get_logger(), "Mission is acceleration('%d')", mission);
+          break;
 
-      case lart_msgs::msg::Mission::SKIDPAD:
-        //call the custom launch file for the skidpad mission mode of the panner. :(
-        laps = LAPS_SKIDPAD;
-        current_mission_msg.data= lart_msgs::msg::Mission::SKIDPAD;
-        activate_nodes(LAUNCH_FILE_SKIDPAD);
-        RCLCPP_INFO(this->get_logger(), "Mission is skidpad('%d')", mission);
-        break;
+        case lart_msgs::msg::Mission::SKIDPAD:
+          //call the custom launch file for the skidpad mission mode of the panner. :(
+          laps = LAPS_SKIDPAD;
+          current_mission_msg.data= lart_msgs::msg::Mission::SKIDPAD;
+          activate_nodes(LAUNCH_FILE_SKIDPAD);
+          RCLCPP_INFO(this->get_logger(), "Mission is skidpad('%d')", mission);
+          break;
 
-      case lart_msgs::msg::Mission::TRACKDRIVE:
-        laps = LAPS_TRACKDRIVE;
-        current_mission_msg.data= lart_msgs::msg::Mission::TRACKDRIVE;
-        activate_nodes(LAUNCH_FILE_TRACKDRIVE);
-        RCLCPP_INFO(this->get_logger(), "Mission is trackDrive('%d')", mission);
-        break;
+        case lart_msgs::msg::Mission::TRACKDRIVE:
+          laps = LAPS_TRACKDRIVE;
+          current_mission_msg.data= lart_msgs::msg::Mission::TRACKDRIVE;
+          activate_nodes(LAUNCH_FILE_TRACKDRIVE);
+          RCLCPP_INFO(this->get_logger(), "Mission is trackDrive('%d')", mission);
+          break;
 
-      case lart_msgs::msg::Mission::EBS_TEST:
-        current_mission_msg.data= lart_msgs::msg::Mission::EBS_TEST;
-        laps = LAPS_EBS_TEST;
-        activate_nodes(LAUNCH_FILE_TRACKDRIVE);
-        RCLCPP_INFO(this->get_logger(), "Mission is ebs test('%d')", mission);
-        break;
+        case lart_msgs::msg::Mission::EBS_TEST:
+          current_mission_msg.data= lart_msgs::msg::Mission::EBS_TEST;
+          laps = LAPS_EBS_TEST;
+          activate_nodes(LAUNCH_FILE_TRACKDRIVE);
+          RCLCPP_INFO(this->get_logger(), "Mission is ebs test('%d')", mission);
+          break;
 
-      case lart_msgs::msg::Mission::INSPECTION:
-        current_mission_msg.data= lart_msgs::msg::Mission::INSPECTION;
-        activate_inspection();
-        RCLCPP_INFO(this->get_logger(), "Mission is inspection('%d')", mission);
-        break;
+        case lart_msgs::msg::Mission::INSPECTION:
+          current_mission_msg.data= lart_msgs::msg::Mission::INSPECTION;
+          laps = LAPS_INSPECTION;
+          activate_inspection();
+          RCLCPP_INFO(this->get_logger(), "Mission is inspection('%d')", mission);
+          break;
 
-      case lart_msgs::msg::Mission::AUTOCROSS:
-        current_mission_msg.data= lart_msgs::msg::Mission::AUTOCROSS;
-        laps = LAPS_AUTOCROSS;
-        activate_nodes(LAUNCH_FILE_TRACKDRIVE);
-        RCLCPP_INFO(this->get_logger(), "Mission is autocross('%d')", mission);
-        break;
+        case lart_msgs::msg::Mission::AUTOCROSS:
+          current_mission_msg.data= lart_msgs::msg::Mission::AUTOCROSS;
+          laps = LAPS_AUTOCROSS;
+          activate_nodes(LAUNCH_FILE_TRACKDRIVE);
+          RCLCPP_INFO(this->get_logger(), "Mission is autocross('%d')", mission);
+          break;
 
-      default:
-        RCLCPP_INFO(this->get_logger(), "Unknown mission('%d')", mission);
+        default:
+          RCLCPP_INFO(this->get_logger(), "Unknown mission('%d')", mission);
+      }
     }
-    
-    if(current_mission_msg.data != previous_mission_msg.data){
-      previous_mission_msg.data = current_mission_msg.data;
-      mission_pub_->publish(current_mission_msg);
-    }
+    mission_pub_->publish(current_mission_msg);
   }
 
   rclcpp::Subscription<lart_msgs::msg::Mission>::SharedPtr acu_mission_sub_;
   rclcpp::Subscription<lart_msgs::msg::SlamStats>::SharedPtr lap_subscriber_;
   rclcpp::Subscription<lart_msgs::msg::State>::SharedPtr state_subscriber_;
+  rclcpp::Subscription<std_msgs::msg::UInt16>::SharedPtr ignition_subscriber_;
   rclcpp::Publisher<lart_msgs::msg::Mission>::SharedPtr mission_pub_;
   rclcpp::Publisher<lart_msgs::msg::State>::SharedPtr mission_finished_pub_;
   rclcpp::TimerBase::SharedPtr timer;
