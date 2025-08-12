@@ -45,7 +45,7 @@ public:
 
     state_subscriber_ = this->create_subscription<lart_msgs::msg::State>("/pc_origin/system_status/critical_as/state", 10, std::bind(&Mission_controller::process_state, this, _1));//get the state from the state controller
 
-    ignition_subscriber_ = this->create_subscription<std_msgs::msg::UInt16>("/system/ignition", 10, std::bind(&Mission_controller::process_ignition, this, _1));//get the ignition status from the state controller
+    ignition_subscriber_ = this->create_subscription<std_msgs::msg::UInt16>("/system/ignition_status", 10, std::bind(&Mission_controller::process_ignition, this, _1));//get the ignition status from the state controller
 
     mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("/pc_origin/system_status/critical_as/mission", 10);
     mission_finished_pub_ = this->create_publisher<lart_msgs::msg::State>("/pc_origin/system_status/critical_as", 10);//publisher to state_controller true if all laps were made, topic to be defined
