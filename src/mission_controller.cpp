@@ -17,6 +17,8 @@
 #include "lart_msgs/msg/state.hpp"
 #include "lart_msgs/msg/as_status.hpp"
 #include "lart_msgs/msg/slam_stats.hpp"
+#include "lart_msgs/msg/acu.hpp"
+#include "topics.h"
 
 
 #define LAPS_ACCELERATION 1
@@ -40,15 +42,13 @@ class Mission_controller : public rclcpp::Node
 public:
   Mission_controller(): Node("mission_controller")
   {
-    lap_subscriber_ = this->create_subscription<lart_msgs::msg::SlamStats>("/ekf/stats", 5, std::bind(&Mission_controller::lap_count, this, _1));//need to know the full path of the topic
-    acu_mission_sub_ = this->create_subscription<lart_msgs::msg::Mission>("/acu_origin/system_status/critical_as/mission", 10, std::bind(&Mission_controller::process_mission, this, _1));//get the mission from the ACU
+    lap_subscriber_ = this->create_subscription<lart_msgs::msg::SlamStats>(TOPIC_STATS, 5, std::bind(&Mission_controller::lap_count, this, _1));//need to know the full path of the topic
+    acu_sub_ = this->create_subscription<lart_msgs::msg::Acu>(TOPIC_CAN_ACU, 10, std::bind(&Mission_controller::process_acu, this, _1));//get the mission from the ACU
 
-    state_subscriber_ = this->create_subscription<lart_msgs::msg::State>("/pc_origin/system_status/critical_as/state", 10, std::bind(&Mission_controller::process_state, this, _1));//get the state from the state controller
+    state_subscriber_ = this->create_subscription<lart_msgs::msg::State>(TOPIC_STATE_PC, 10, std::bind(&Mission_controller::process_state, this, _1));//get the state from the state controller
 
-    ignition_subscriber_ = this->create_subscription<std_msgs::msg::UInt16>("/system/ignition_status", 10, std::bind(&Mission_controller::process_ignition, this, _1));//get the ignition status from the state controller
-
-    mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>("/pc_origin/system_status/critical_as/mission", 10);
-    mission_finished_pub_ = this->create_publisher<lart_msgs::msg::State>("/pc_origin/system_status/critical_as", 10);//publisher to state_controller true if all laps were made, topic to be defined
+    mission_pub_ = this->create_publisher<lart_msgs::msg::Mission>(TOPIC_MISSION_PC, 10);
+    mission_finished_pub_ = this->create_publisher<lart_msgs::msg::State>(TOPIC_STATE_NODES, 10);//publisher to state_controller true if all laps were made, topic to be defined
     
     this->current_mission_msg.data = lart_msgs::msg::Mission::MANUAL; //default mission
   }
@@ -143,9 +143,11 @@ private:
   }
 
 
-  void process_mission( const lart_msgs::msg::Mission::SharedPtr msg)
+  void process_acu( const lart_msgs::msg::Acu::SharedPtr msg)
   {
-    auto mission = msg->data;
+    auto mission = msg->mission_select;
+    mission_pub_->publish(current_mission_msg);
+    this->ignition_status = msg->ign;
     if (ignition_status == 1){
       switch(mission){
         case lart_msgs::msg::Mission::MANUAL:
@@ -200,10 +202,9 @@ private:
     mission_pub_->publish(current_mission_msg);
   }
 
-  rclcpp::Subscription<lart_msgs::msg::Mission>::SharedPtr acu_mission_sub_;
+  rclcpp::Subscription<lart_msgs::msg::Acu>::SharedPtr acu_sub_;
   rclcpp::Subscription<lart_msgs::msg::SlamStats>::SharedPtr lap_subscriber_;
   rclcpp::Subscription<lart_msgs::msg::State>::SharedPtr state_subscriber_;
-  rclcpp::Subscription<std_msgs::msg::UInt16>::SharedPtr ignition_subscriber_;
   rclcpp::Publisher<lart_msgs::msg::Mission>::SharedPtr mission_pub_;
   rclcpp::Publisher<lart_msgs::msg::State>::SharedPtr mission_finished_pub_;
   rclcpp::TimerBase::SharedPtr timer;

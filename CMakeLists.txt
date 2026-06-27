@@ -10,6 +10,9 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(lart_msgs REQUIRED)
 
+include_directories(
+  ${CMAKE_SOURCE_DIR}/../lart_common
+)
 
 add_executable(mission_controller src/mission_controller.cpp)
 ament_target_dependencies(mission_controller rclcpp std_msgs lart_msgs)
