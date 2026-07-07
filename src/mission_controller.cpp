@@ -108,9 +108,9 @@ private:
 
   void process_state(const lart_msgs::msg::State::SharedPtr msg)
   {
-    if (msg->data == lart_msgs::msg::State::FINISH || msg->data == lart_msgs::msg::State::EMERGENCY) {
-      rclcpp::shutdown(); // Shutdown the node if mission is finished or emergency state is reached
-    }
+    // if (msg->data == lart_msgs::msg::State::FINISH || msg->data == lart_msgs::msg::State::EMERGENCY) {
+    //   rclcpp::shutdown(); // Shutdown the node if mission is finished or emergency state is reached
+    // }
   }
 
   void activate_inspection(){
